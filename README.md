@@ -1,2 +1,2 @@
-# CoolWeaher
+# CoolWeather
 a weather forecast application
