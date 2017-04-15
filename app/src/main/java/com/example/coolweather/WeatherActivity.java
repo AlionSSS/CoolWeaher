@@ -1,13 +1,21 @@
 package com.example.coolweather;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Build;
 import android.preference.PreferenceManager;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.Html;
+import android.text.Spanned;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -17,6 +25,7 @@ import android.widget.Toast;
 import com.bumptech.glide.Glide;
 import com.example.coolweather.gson.DailyForecast;
 import com.example.coolweather.gson.Weather;
+import com.example.coolweather.service.AutoUpdateService;
 import com.example.coolweather.util.HttpUtil;
 import com.example.coolweather.util.Utility;
 
@@ -40,6 +49,11 @@ public class WeatherActivity extends AppCompatActivity {
     private TextView tvCarWash;
     private TextView tvSport;
     private ImageView ivBing;
+    private Button btnNav;
+    public SwipeRefreshLayout swipeRefresh;
+    public DrawerLayout drawerLayout;
+
+    private String weatherId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,11 +68,17 @@ public class WeatherActivity extends AppCompatActivity {
 
         initView();
         initData();
+        initListener();
     }
 
     private void initView() {
         ivBing = (ImageView) findViewById(R.id.iv_bing);
+        drawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
+        swipeRefresh = (SwipeRefreshLayout) findViewById(R.id.swipe_refresh);
+        swipeRefresh.setColorSchemeResources(android.R.color.holo_blue_light, android.R.color.holo_green_light,
+                android.R.color.holo_orange_light, android.R.color.holo_red_light);
         scrollView = (ScrollView) findViewById(R.id.scroll_view);
+        btnNav = (Button) findViewById(R.id.btn_nav);
         tvCity = (TextView) findViewById(R.id.tv_city);
         tvUpdateTime = (TextView) findViewById(R.id.tv_update_time);
         tvDegree = (TextView) findViewById(R.id.tv_degree);
@@ -85,13 +105,29 @@ public class WeatherActivity extends AppCompatActivity {
         if (weatherString != null) {
             //有缓存时，直接解析天气数据
             Weather weather = Utility.handleWeatherResponse(weatherString);
+            weatherId = weather.heWeather.get(0).basic.id;
             showWeatherInfo(weather);
         } else {
             //没缓存时，去服务器查询天气
-            String weatherId = getIntent().getStringExtra("weather_id");
+            weatherId = getIntent().getStringExtra("weather_id");
             scrollView.setVisibility(View.INVISIBLE);
             requestWeather(weatherId);
         }
+    }
+
+    private void initListener() {
+        swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                requestWeather(weatherId);
+            }
+        });
+        btnNav.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                drawerLayout.openDrawer(GravityCompat.START);
+            }
+        });
     }
 
     /**
@@ -153,11 +189,18 @@ public class WeatherActivity extends AppCompatActivity {
             tvPm25.setText(heWeather.aqi.city.pm25);
         }
 
-        tvComfort.setText("舒适度：" + heWeather.suggestion.comf.txt);
-        tvCarWash.setText("洗车指数：" + heWeather.suggestion.cw.txt);
-        tvSport.setText("运动建议：" + heWeather.suggestion.sport.txt);
+        tvComfort.setText(Html.fromHtml("<font color='#ffffff'><big>舒适度：</big></font>" +
+                heWeather.suggestion.comf.txt));
+        tvCarWash.setText(Html.fromHtml("<font color='#ffffff'><big>洗车指数：</big></font>" +
+                heWeather.suggestion.comf.txt));
+        tvSport.setText(Html.fromHtml("<font color='#ffffff'><big>运动建议：</big></font>" +
+                heWeather.suggestion.comf.txt));
 
         scrollView.setVisibility(View.VISIBLE);
+
+        //启动定时更新服务
+        Intent intent = new Intent(this, AutoUpdateService.class);
+        startService(intent);
     }
 
     private class ViewHolder {
@@ -181,9 +224,10 @@ public class WeatherActivity extends AppCompatActivity {
      *
      * @param weatherId 天气id
      */
-    private void requestWeather(String weatherId) {
-        String weatherUrl = "http://guolin.tech/api/weather?cityid="
+    public void requestWeather(String weatherId) {
+        String weatherUrl = "https://free-api.heweather.com/v5/weather?city="
                 + weatherId + "&key=6d2738cab4d64502abd536967be7f2d2";
+        Log.e("tag", weatherUrl);
         HttpUtil.sendOkHttpRequest(weatherUrl, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -191,6 +235,7 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
+                        swipeRefresh.setRefreshing(false);
                     }
                 });
             }
@@ -212,6 +257,7 @@ public class WeatherActivity extends AppCompatActivity {
                         } else {
                             Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
                         }
+                        swipeRefresh.setRefreshing(false);
                     }
                 });
             }

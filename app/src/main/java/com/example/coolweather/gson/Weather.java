@@ -12,7 +12,7 @@ import java.util.ArrayList;
 
 public class Weather {
 
-    @SerializedName("HeWeather")
+    @SerializedName("HeWeather5")
     public ArrayList<HeWeather> heWeather;
 
     public class HeWeather {
